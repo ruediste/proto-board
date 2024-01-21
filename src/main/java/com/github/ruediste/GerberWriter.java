@@ -1,7 +1,12 @@
 package com.github.ruediste;
 
+import static com.github.ruediste.Vector.vector;
+
+import java.io.BufferedReader;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
+import java.io.FileReader;
+import java.io.IOException;
 import java.io.OutputStream;
 import java.io.PrintStream;
 import java.nio.charset.StandardCharsets;
@@ -18,12 +23,25 @@ public class GerberWriter implements AutoCloseable {
     private boolean currentPolarityIsDark;
 
     public GerberWriter(UUID ident, String outputFile) throws FileNotFoundException {
-        this(ident, new FileOutputStream(outputFile, false));
+        this.out = new PrintStream(new FileOutputStream(outputFile, false), true, StandardCharsets.UTF_8);
+        this.out.println("%TF.SameCoordinates," + ident + "*%");
     }
 
-    public GerberWriter(UUID ident, OutputStream out) {
-        this.out = new PrintStream(out, true, StandardCharsets.UTF_8);
-        this.out.println("%TF.SameCoordinates," + ident + "*%"); // format of coordinates
+    public GerberWriter(UUID ident, String outputFile, String baseFile) throws IOException {
+        this.out = new PrintStream(new FileOutputStream(outputFile, false), true, StandardCharsets.UTF_8);
+
+        // Set aperture to a high number. Hacky, but avoids the need to parse the file.
+        nextApertureNr = 1000;
+
+        // copy base file except for the termination
+        try (var reader = new BufferedReader(new FileReader(baseFile, StandardCharsets.UTF_8))) {
+            while (true) {
+                var line = reader.readLine();
+                if (line == null || line.equals("M02*"))
+                    break;
+                out.println(line);
+            }
+        }
     }
 
     public void fileAttributesFinished() {
@@ -171,6 +189,16 @@ public class GerberWriter implements AutoCloseable {
     public GerberWriter attrFilePolarity(boolean positive) {
         out.printf("%%TF.FilePolarity,%s*%%\n", positive ? "Positive" : "Negative");
         return this;
+    }
+
+    public GerberWriter rectangle(Vector center, double xSize, double ySize, double angleDegrees) {
+        return contour(() -> {
+            move(vector(-xSize / 2, -ySize / 2).rotate(angleDegrees).add(center));
+            linearInterpolation();
+            interpolate(vector(xSize / 2, -ySize / 2).rotate(angleDegrees).add(center));
+            interpolate(vector(xSize / 2, ySize / 2).rotate(angleDegrees).add(center));
+            interpolate(vector(-xSize / 2, ySize / 2).rotate(angleDegrees).add(center));
+        });
     }
 
     public GerberWriter interpolate(Vector v) {
