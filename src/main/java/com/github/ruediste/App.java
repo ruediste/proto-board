@@ -5,6 +5,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+import java.util.stream.StreamSupport;
 
 import com.github.ruediste.GerberWriter.ApertureArgs;
 import com.github.ruediste.GerberWriter.CopperLayerType;
@@ -31,6 +32,7 @@ public class App {
     GerberWriter bottomMask;
     GerberWriter bottomSilk;
     GerberWriter pth;
+    GerberWriter edgeCuts;
 
     public int layerCount = 4;
     List<GerberWriter> allLayers;
@@ -92,8 +94,9 @@ public class App {
         bottomMask = openWriter("B_Mask.gbr");
         bottomSilk = openWriter("B_Silkscreen.gbr");
         pth = openWriter("PTH-drl.gbr");
+        edgeCuts = openWriter("Edge_Cuts.gbr");
 
-        allLayers = List.of(top, topMask, topSilk, in1, in2, bottom, bottomMask, bottomSilk, pth);
+        allLayers = List.of(top, topMask, topSilk, in1, in2, bottom, bottomMask, bottomSilk, pth, edgeCuts);
 
         try {
             if (!append) {
@@ -126,23 +129,27 @@ public class App {
 
             double connectionWidth = 0.2;
 
-            Pad pad = new Pad(0.3);
             Via via = new Via(0.5, 0.3, connectionWidth, 0.2, 0.3);
 
-            {
-                double copperDiameter = 0.75;
-                double outerGap = 0.2;
-                double innerGap = 0.15;
-                CircularSolderJumper jumper = new CircularSolderJumper(copperDiameter, outerGap, innerGap,
-                        connectionWidth);
-                // RectangularSolderJumper jumper2 = new RectangularSolderJumper(0.2, 0.6,
-                // outerGap,
-                // innerGap,
-                // connectionWidth);
-                drawBoard(0, 0, raster, 25, 38,
-                        jumper,
-                        pad,
-                        via);
+            int x = 0;
+            int y = 0;
+            int i = 0;
+            var pads = List.of(new Pad(0.3), new Pad(0.5));
+
+            for (double outerGap : List.of(0.2, 0.3)) {
+                for (double innerGap : List.of(0.15, 0.25)) {
+                    double copperDiameter = 0.75;
+                    CircularSolderJumper jumper = new CircularSolderJumper(copperDiameter, outerGap, innerGap,
+                            connectionWidth);
+                    drawBoard(x * raster, y * raster, raster, 4, 4,
+                            jumper,
+                            pads.get(i % pads.size()),
+                            via);
+                    i++;
+                    x += 4;
+                }
+                y += 4;
+                x = 0;
             }
 
         } finally {
